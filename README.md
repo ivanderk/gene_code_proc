@@ -39,7 +39,7 @@ Good resources to start are the [F# home page](https://fsharp.org/), the [docs a
 
 ### Build & Test status
 
-![Main build and test](https://github.com/ivanderk/docs/actions/workflows/dotnet.yml/badge.svg)
+![Main build and test](https://github.com/ivanderk/gene_code_proc/actions/workflows/dotnet.yml/badge.svg)
 
 ### License 
 
