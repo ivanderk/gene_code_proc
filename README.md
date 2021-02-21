@@ -37,6 +37,10 @@ For Fun ("and Profit"?). F# is together with TypeScript and Rust my favourite pr
 
 Good resources to start are the [F# home page](https://fsharp.org/), the [docs at Microsoft](https://docs.microsoft.com/en-us/dotnet/fsharp/)  and the phenomenally rich site [F# for Fun and Profit](https://fsharpforfunandprofit.com/).
 
+### Build & Test status
+
+!Main build and test](https://github.com/ivanderk/docs/actions/workflows/dotnet.yml/badge.svg)
+
 ### License 
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
