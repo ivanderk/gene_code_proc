@@ -38,18 +38,14 @@ module Encoder =
          use e = codons.GetEnumerator()
          let mutable (lst: Codon list) = List.empty
          let mutable cont = true
-         while cont do
-             if e.MoveNext() then
-                let arr = to_codon e.Current
-                match arr with                             
-                    | Ok (StopCodon (a,b,c) as codon) -> if not lst.IsEmpty then
-                                                            yield Ok (lst, codon); lst <- List.empty                                       
-                    | Ok (DataCodon (a,b,c) as codon) -> lst <- lst @ [codon]                                                  
-                    | Error e -> yield Error e; cont <- false
-             else 
-                if not lst.IsEmpty then
-                    yield Error NoStopCodon                                                        
-                cont <- false
+         while cont && e.MoveNext() do            
+            match to_codon e.Current with                             
+                | Ok (StopCodon (a,b,c) as codon) -> if not lst.IsEmpty then
+                                                        yield Ok (lst, codon); lst <- List.empty                                       
+                | Ok (DataCodon (a,b,c) as codon) -> lst <- lst @ [codon]                                                  
+                | Error e -> yield Error e; cont <- false          
+         if not lst.IsEmpty then
+            yield Error NoStopCodon                                                                 
     }
                
     let tokens e =
