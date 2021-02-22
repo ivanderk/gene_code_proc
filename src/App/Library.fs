@@ -53,10 +53,10 @@ module Encoder =
     }
                
     let tokens e =
-        Seq.filter (skip_comment ()) e |> Seq.filter (fun c -> not(Char.IsWhiteSpace(c)))  
+        Seq.filter (skip_comment ()) e |> Seq.filter (fun c -> not(Char.IsWhiteSpace(c))) |> Seq.map Char.ToUpper  
     
     let genes (s: seq<char>) : Result<Gene, InvalidStates> seq =        
-        s |> tokens |> Seq.map Char.ToUpper |> Seq.chunkBySize 3 |> genes_from_codons
+        s |> tokens |> Seq.chunkBySize 3 |> genes_from_codons
         
     module Test =     
         open NUnit.Framework
@@ -68,11 +68,11 @@ module Encoder =
                         
             let e = t.GetEnumerator()
             e.MoveNext() |> ignore            
-            e.Current |> should equal 'c'
+            e.Current |> should equal 'C'
             e.MoveNext() |> ignore            
             e.Current |> should equal 'G'
             e.MoveNext() |> ignore            
-            e.Current |> should equal 'a'
+            e.Current |> should equal 'A'
             e.MoveNext() |> ignore                                    
             e.Current |> should equal 'U'
             e.MoveNext() |> should equal false
