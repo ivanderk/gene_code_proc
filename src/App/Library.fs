@@ -2,50 +2,37 @@
 module Encoder =
     open System
     open System.Collections.Generic    
-    type Codon = char * char * char 
+    type Codon = | DataCodon of char * char * char | StopCodon of char * char * char 
     type Gene = Codon list * Codon                   
     type InvalidStates =
         | UnexpectedEnd of char []
         | InvalidCharacters of char []
         | NoStopCodon 
            
-    let rec skip_comment () : (Char) -> bool =
+    let skip_comment () : (Char) -> bool =
         let mutable skip = false
-        fun (c:Char) ->
-            if c = '>' then
-                skip <- true; false
-            elif skip && c='\n' then
-                skip <- false; false
-            elif skip then
-                false
-            else
-                true
+        fun c ->
+            match c with
+            | '>' -> skip <- true; false
+            | '\n' when skip -> skip <- false; false  
+            | _ -> not skip 
     
-    let is_valid_rna (chr: char[]) =
-        Array.forall (fun c-> c = 'A' || c = 'U'|| c = 'G'|| c = 'C') chr
-        
+    let (|Valid|_|) (chr: char[]) =        
+        match chr with                 
+        | [|'U'; 'A'; 'G' |] -> Some(StopCodon('U', 'A', 'G')) 
+        | [|'U'; 'G'; 'A'|] -> Some(StopCodon('U', 'G', 'A'))
+        | [|'U'; 'A'; 'A'|] -> Some(StopCodon('U', 'A', 'A'))
+        | [|a; b; c |] when Array.forall (fun c-> c = 'A' || c = 'U'|| c = 'G'|| c = 'C') chr -> Some(DataCodon(a,b,c))
+        | _ -> None 
+    
+    let (|Invalid|) (chr: char[]) =
+        if Array.length chr = 3 then InvalidCharacters(chr) else UnexpectedEnd(chr)
+                
     let to_codon (arr: char[]): Result<Codon, InvalidStates> =
-                            
-        if Array.length arr = 3 then                               
-            if is_valid_rna arr then                    
-                Ok (arr.[0],arr.[1],arr.[2])
-            else
-                Error(InvalidCharacters(arr))
-        else
-            Error(UnexpectedEnd(arr))
-
-    let (|StopCodon|_|) (result: Result<Codon, InvalidStates>) =
-        match result with
-        | Ok ('U', 'A', 'G') -> Some ('U', 'A', 'G')
-        | Ok ('U', 'G', 'A') -> Some ('U', 'G', 'A')
-        | Ok ('U', 'A', 'A') -> Some ('U', 'A', 'A')
-        | _ -> None
-
-    let (|Codon|_|) (result: Result<Codon, InvalidStates>) =
-        match result with
-        | Ok codon -> Some codon
-        | _ -> None
-    
+        match arr with
+        | Valid codon -> Ok codon        
+        | Invalid e -> Error e
+           
     let genes_from_codons (codons: seq<char[]>): Result<Gene, InvalidStates> seq=                             
        seq {             
          use e = codons.GetEnumerator()
@@ -55,9 +42,9 @@ module Encoder =
              if e.MoveNext() then
                 let arr = to_codon e.Current
                 match arr with                             
-                    | StopCodon codon -> if not lst.IsEmpty then
-                                            yield Ok (lst, codon); lst <- List.empty                                       
-                    | Codon codon -> lst <- lst @ [codon]                                                  
+                    | Ok (StopCodon (a,b,c) as codon) -> if not lst.IsEmpty then
+                                                            yield Ok (lst, codon); lst <- List.empty                                       
+                    | Ok (DataCodon (a,b,c) as codon) -> lst <- lst @ [codon]                                                  
                     | Error e -> yield Error e; cont <- false
              else 
                 if not lst.IsEmpty then
@@ -66,11 +53,11 @@ module Encoder =
     }
                
     let tokens e =
-        Seq.filter (skip_comment ()) e |> Seq.filter (fun c -> not(Char.IsWhiteSpace(c))) 
+        Seq.filter (skip_comment ()) e |> Seq.filter (fun c -> not(Char.IsWhiteSpace(c)))  
     
     let genes (s: seq<char>) : Result<Gene, InvalidStates> seq =        
-        s |> tokens |> Seq.map Char.ToUpper |> Seq.chunkBySize 3 |> genes_from_codons    
-                                                        
+        s |> tokens |> Seq.map Char.ToUpper |> Seq.chunkBySize 3 |> genes_from_codons
+        
     module Test =     
         open NUnit.Framework
         open FsUnit
@@ -89,23 +76,20 @@ module Encoder =
             e.MoveNext() |> ignore                                    
             e.Current |> should equal 'U'
             e.MoveNext() |> should equal false
-
-        [<Test>]
-        let ``Testing whether array of chars represents valid RNA codon (triplet)`` () =
-             is_valid_rna [|'A';'U'; 'G'|] |> should equal true
-             is_valid_rna [|'G';'C'; 'A'|] |> should equal true
-             is_valid_rna [|'T';'U'; 'G'|] |> should equal false //DNA
-
+      
         [<Test>]
         let ``Testing conversion of char array to Codon tuple`` () =
              match to_codon [|'A';'T'; 'G'|] with   
-                | Error (InvalidCharacters chrs) -> chrs  |> should equal [|'A';'T'; 'G'|]
+                | Error (InvalidCharacters chrs) -> chrs  |> should equal [|'A';'T'; 'G'|] // DNA
                 | _-> failwith "Should not have reached this point"
              match to_codon [|'A';'G' |] with   
                 | Error (UnexpectedEnd chrs) -> chrs  |> should equal [|'A';'G'|]
                 | _-> failwith "Should not have reached this point"
              match to_codon [|'A';'G';'U' |] with   
-                | Ok codon -> codon |> should equal ('A', 'G', 'U')
+                | Ok (DataCodon (a, b,c) as codon) -> codon |> should equal (DataCodon ('A', 'G', 'U'))
+                | _-> failwith "Should not have reached this point"
+             match to_codon [|'U';'A';'A' |] with   
+                | Ok (StopCodon (a, b,c) as codon) -> codon |> should equal (StopCodon ('U', 'A', 'A'))
                 | _-> failwith "Should not have reached this point"
         
         [<Test>]
@@ -113,7 +97,7 @@ module Encoder =
          
             let res = genes_from_codons [[|'A'; 'A'; 'C'|];[|'C'; 'A'; 'C'|];[|'U'; 'A'; 'G'|];[|'U'; 'A'; 'G'|]] |> Seq.toList            
             match res.Head with
-                | Ok gene -> gene |> should equal ([('A', 'A', 'C');('C', 'A','C')], ('U', 'A', 'G'))
+                | Ok gene -> gene |> should equal ([DataCodon('A', 'A', 'C');DataCodon('C', 'A','C')], StopCodon('U', 'A', 'G'))
                 | _-> failwith "Should not have reached this point"
              
             let res = genes "aac " |> Seq.toList            
@@ -127,7 +111,7 @@ module Encoder =
                      
             let res1 = genes "aac cac uag uag" |> Seq.toList            
             match res1.Head with
-                | Ok gene -> gene |> should equal ([('A', 'A', 'C');('C', 'A','C')], ('U', 'A', 'G'))
+                | Ok gene -> gene |> should equal ([DataCodon('A', 'A', 'C');DataCodon('C', 'A','C')], StopCodon('U', 'A', 'G'))
                 | _-> failwith "Should not have reached this point" 
             
             let res2 = genes "aaccacuagua" |> Seq.toList            
